@@ -5,7 +5,33 @@ import dotenv from 'dotenv'
 const bcrypt = require("bcrypt")
 dotenv.config()
 const secretKeyRe = process.env.SECRET_REFECT_TOKEN;
-
+function getLevel(id_team,id_level) {
+    let team;
+    let level;
+    if (id_team === 1) {
+        team = 'Ban điều hành'
+    } else if (id_team === 2) {
+        team = 'Nhân sự'
+    } else if (id_team === 3) {
+        team = 'Back End'
+    } else if (id_team === 4) {
+        team = 'Front End'
+    } else if (id_team === 5) {
+        team = 'Devops'
+    } else if (id_team === 6) {
+        team = 'Tester'
+    } else if (id_team === 7) {
+        team = 'PA'
+    } else if (id_team === 8) {
+        team = 'QC'
+    }
+    if (id_level === 1) {
+        level = 'Trưởng nhóm'
+    } else if (id_level === 2) {
+        level = 'Nhân viên'
+    }
+    return {team,level}
+}
 let register = async (req, res) => {
     const { fullname, username, password, id_team, id_level } = req.body;
     // Thêm ngày tạo tài khoản vào cơ sở dữ liệu
@@ -148,6 +174,53 @@ let refreshToken = async (req, res) => {
     })
 }
 
+let updatePassword = async (req, res) => {
+    const userId = req.params.userId;
+    const { oldPassword, newPassword } = req.body;
+
+    // Truy vấn người dùng trong cơ sở dữ liệu
+    const getUserQuery = 'SELECT * FROM users WHERE id = ?';
+    pool.query(getUserQuery, [userId], (error, results) => {
+        if (error) {
+            console.error('Error querying user:', error);
+            res.status(500).json({ error: 'An error occurred' });
+        } else if (results.length === 0) {
+            res.status(404).json({ error: 'User not found' });
+        } else {
+            const user = results[0];
+
+            // Kiểm tra mật khẩu cũ của người dùng
+            bcrypt.compare(oldPassword, user.password, (error, result) => {
+                if (error) {
+                    console.error('Error comparing passwords:', error);
+                    res.status(500).json({ error: 'An error occurred' });
+                } else if (!result) {
+                    res.status(401).json({ error: 'Invalid old password' });
+                } else {
+                    // Mã hóa mật khẩu mới
+                    bcrypt.hash(newPassword, 10, (error, hash) => {
+                        if (error) {
+                            console.error('Error hashing password:', error);
+                            res.status(500).json({ error: 'An error occurred' });
+                        } else {
+                            // Cập nhật mật khẩu mới trong cơ sở dữ liệu
+                            const updateUserQuery = 'UPDATE users SET password = ? WHERE id = ?';
+                            pool.query(updateUserQuery, [hash, userId], (error, results) => {
+                                if (error) {
+                                    console.error('Error updating password:', error);
+                                    res.status(500).json({ error: 'An error occurred' });
+                                } else {
+                                    res.json({ message: 'Password changed successfully' });
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+
 let getAllUser = async (req, res) => {
     pool.query(`SELECT * FROM users`, (error, results) => {
         const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
@@ -186,8 +259,9 @@ let user = async (req, res) => {
             console.error('Error retrieving user information:', error);
         } else {
             if (results.length > 0) {
+                const {team,level} = getLevel(results[0].id_team, results[0].id_level)
                 const { password, ...orther } = results[0];
-                res.json({ ...orther });
+                res.json({ data: { ...orther,title_name:team,title_level:level } });
             } else {
                 res.status(404).json({ error: 'User not found' });
             }
@@ -287,23 +361,23 @@ let getCheckinsUser = async (req, res) => {
     const userId = req.params.userId;
     const year = parseInt(req.params.year);
     const month = parseInt(req.params.month);
-  
+
     // Xác định ngày bắt đầu và ngày kết thúc của tháng
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
-    
+
     // Thực hiện truy vấn để lấy danh sách check-ins của người dùng trong tháng
     const query = `SELECT * FROM checkins WHERE user_id = ${userId} AND checkin_date >= '${startDate.toISOString().slice(0, 10)}' AND checkin_date <= '${endDate.toISOString().slice(0, 10)}'`;
-  
+
     pool.query(query, (error, results) => {
-      if (error) {
-        console.error('Error executing query:', error);
-        res.status(500).json({ error: 'An error occurred' });
-      } else {
-        res.json({ checkins: results });
-      }
+        if (error) {
+            console.error('Error executing query:', error);
+            res.status(500).json({ error: 'An error occurred' });
+        } else {
+            res.json({ checkins: results });
+        }
     });
-  }
+}
 let getUserByTeam = async (req, res) => {
     const { id } = req.body
     const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
@@ -343,15 +417,38 @@ let getUserByTeam = async (req, res) => {
     })
 }
 
+let getRangerCheckins = async (req, res) => {
+    const year = parseInt(req.params.year);
+    const month = parseInt(req.params.month);
+
+    // Xác định ngày bắt đầu và ngày kết thúc của tháng
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    // Thực hiện truy vấn để lấy danh sách các người dùng có thời gian check-in và check-out ít nhất trong một tháng
+    const query = `SELECT user_id, MIN(checkin_time) AS min_checkin_time, MIN(checkout_time) AS min_checkout_time FROM checkins WHERE checkin_date >= '${startDate.toISOString().slice(0, 10)}' AND checkin_date <= '${endDate.toISOString().slice(0, 10)}' GROUP BY user_id ORDER BY min_checkin_time, min_checkout_time`;
+
+    pool.query(query, (error, results) => {
+        if (error) {
+            console.error('Error executing query:', error);
+            res.status(500).json({ error: 'An error occurred' });
+        } else {
+            res.json({ data: results });
+        }
+    });
+}
+
 
 module.exports = {
     register,
     login,
     refreshToken,
+    updatePassword,
     getAllUser,
     user,
     checkIn,
     checkOut,
     getUserByTeam,
     getCheckinsUser,
+    getRangerCheckins
 }

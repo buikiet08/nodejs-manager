@@ -2,6 +2,7 @@ import express from 'express'
 import configViewEngine from './config/viewEngine'
 import connection from './config/connectDB';
 import dotenv from 'dotenv'
+import cors from 'cors'
 import initApiRouter from './route/api';
 const fileUpload = require('express-fileupload');
 dotenv.config()
@@ -13,6 +14,7 @@ const app = express()
 const port = process.env.PORT || 3001
 
 // cấu hình cho req
+app.use(cors());
 app.use(express.urlencoded({extended:true}))
 app.use(express.json())
 app.use(fileUpload());
