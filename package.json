@@ -1,0 +1,53 @@
+{
+  "name": "nodejs",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "clean": "rm -rf build && mkdir build",
+    "build-babel": "babel ./src -d ./build/src",
+    "build": "npm run clean && npm run build-babel",
+    "production": "npm run build && node ./build/src/server.js",
+    "dev": "nodemon --exec ./node_modules/.bin/babel-node ./src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/buikiet08/nodeis_blog.git"
+  },
+  "keywords": [
+    "nodejs",
+    "react",
+    "js"
+  ],
+  "author": "buikiet",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/buikiet08/nodeis_blog/issues"
+  },
+  "homepage": "https://github.com/buikiet08/nodeis_blog#readme",
+  "dependencies": {
+    "@babel/runtime": "^7.21.5",
+    "app-root-path": "^3.1.0",
+    "axios": "^1.4.0",
+    "bcrypt": "^5.1.0",
+    "body-parser": "1.19.0",
+    "dotenv": "10.0.0",
+    "ejs": "^3.1.9",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "express-jwt": "^8.4.1",
+    "jsonwebtoken": "^9.0.0",
+    "multer": "^1.4.5-lts.1",
+    "mysql2": "^3.3.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.21.5",
+    "@babel/core": "^7.15.5",
+    "@babel/node": "^7.15.4",
+    "@babel/plugin-transform-runtime": "^7.21.4",
+    "@babel/preset-env": "^7.15.6",
+    "morgan": "^1.10.0",
+    "nodemon": "2.0.12"
+  }
+}
