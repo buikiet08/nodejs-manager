@@ -2,70 +2,24 @@ import pool from "../config/connectPool";
 import jwt from "jsonwebtoken"
 import { generateAccessToken, generateRefreshToken } from "../util";
 import dotenv from 'dotenv'
+import { getLevel, validateEmail } from "../util/validate";
 const bcrypt = require("bcrypt")
 dotenv.config()
 const secretKeyRe = process.env.SECRET_REFECT_TOKEN;
-function getLevel(id_team,id_level) {
-    let team;
-    let level;
-    if (id_team === 1) {
-        team = 'Ban điều hành'
-    } else if (id_team === 2) {
-        team = 'Nhân sự'
-    } else if (id_team === 3) {
-        team = 'Back End'
-    } else if (id_team === 4) {
-        team = 'Front End'
-    } else if (id_team === 5) {
-        team = 'Devops'
-    } else if (id_team === 6) {
-        team = 'Tester'
-    } else if (id_team === 7) {
-        team = 'PA'
-    } else if (id_team === 8) {
-        team = 'QC'
-    }
-    if (id_level === 1) {
-        level = 'Trưởng nhóm'
-    } else if (id_level === 2) {
-        level = 'Nhân viên'
-    }
-    return {team,level}
-}
+
 let register = async (req, res) => {
     const { fullname, username, password, id_team, id_level } = req.body;
     // Thêm ngày tạo tài khoản vào cơ sở dữ liệu
     const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
-    if (password.length > 22 || password.length < 6) {
+    if (password?.length > 22 || password?.length < 6) {
         return res.status(500).json({ error: 'Mật khẩu tối đa 22 kí tự và tối thiểu 10 kí tự' })
+    }
+    if (!validateEmail(username)) {
+        return res.status(500).json({ error: 'Vui lòng nhập đúng định dạng email' })
     }
     if (typeof id_team !== 'number' || typeof id_level !== 'number') {
         return res.status(500).json({ error: 'Vui lòng nhập đúng kiểu dữ liệu' })
     }
-    // let team;
-    // let level;
-    // if(name_team === 1) {
-    //     team = 'Ban điều hành'
-    // } else if(name_team === 2) {
-    //     team = 'Nhân sự'
-    // } else if(name_team === 3) {
-    //     team = 'Back End'
-    // } else if(name_team === 4) {
-    //     team = 'Front End'
-    // } else if(name_team === 5) {
-    //     team = 'Devops'
-    // } else if(name_team === 6) {
-    //     team = 'Tester'
-    // } else if(name_team === 7) {
-    //     team = 'PA'
-    // } else if(name_team === 8) {
-    //     team = 'QC'
-    // }
-    // if(name_level === 1){
-    //     level= 'Trưởng nhóm'
-    // } else if(name_level === 2) {
-    //     level = 'Nhân viên'
-    // }
 
     pool.getConnection((err, connection) => {
         if (err) {
@@ -83,7 +37,7 @@ let register = async (req, res) => {
                     const salt = await bcrypt.genSalt(10)
                     const hashedPassword = await bcrypt.hash(password, salt);
                     // Thực hiện truy vấn SQL để thêm người dùng mới
-                    const insertQuery = 'INSERT INTO users (fullname,username, password,create_at, id_team, id_level) VALUES (?, ?, ?, ?, ?)';
+                    const insertQuery = 'INSERT INTO users (fullname,username, password,create_at, id_team, id_level) VALUES (?, ?, ?, ?, ?,?)';
                     connection.query(insertQuery, [fullname, username, hashedPassword, currentDate, id_team, id_level], (error, results) => {
                         // Giải phóng kết nối
                         connection.release();
@@ -222,7 +176,30 @@ let updatePassword = async (req, res) => {
 }
 
 let getAllUser = async (req, res) => {
-    pool.query(`SELECT * FROM users`, (error, results) => {
+    const { fullname, phone, username, id_team } = req.query;
+    let query = 'SELECT * FROM users WHERE 1=1';
+    let params = [];
+
+    if (fullname) {
+        query += ' AND name LIKE ?';
+        params.push(`%${fullname}%`);
+    }
+
+    if (phone) {
+        query += ' AND phone LIKE ?';
+        params.push(`%${phone}%`);
+    }
+
+    if (username) {
+        query += ' AND email LIKE ?';
+        params.push(`%${username}%`);
+    }
+
+    if (id_team) {
+        query += ' AND id_team = ?';
+        params.push(id_team);
+    }
+    pool.query(query,params, (error, results) => {
         const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
         const itemsPerPage = 10; // Số bản ghi hiển thị trên mỗi trang
         console.log('vào data', results)
@@ -232,8 +209,11 @@ let getAllUser = async (req, res) => {
         }
         let data = []
         results.forEach(e => {
-            const { password, ...orther } = e
-            data.push({ ...orther })
+            if (e.admin === 0) {
+                const { password, ...orther } = e
+                const { team, level } = getLevel(e.id_team, e.id_level)
+                data.push({ ...orther, title_name: team, title_level: level })
+            }
         })
         // Tính toán tổng số trang
         const totalPages = Math.ceil(data.length / itemsPerPage);
@@ -259,9 +239,9 @@ let user = async (req, res) => {
             console.error('Error retrieving user information:', error);
         } else {
             if (results.length > 0) {
-                const {team,level} = getLevel(results[0].id_team, results[0].id_level)
+                const { team, level } = getLevel(results[0].id_team, results[0].id_level)
                 const { password, ...orther } = results[0];
-                res.json({ data: { ...orther,title_name:team,title_level:level } });
+                res.json({ data: { ...orther, title_name: team, title_level: level } });
             } else {
                 res.status(404).json({ error: 'User not found' });
             }
