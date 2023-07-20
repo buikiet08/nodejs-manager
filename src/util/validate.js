@@ -2,7 +2,11 @@ export function validateEmail(email) {
     const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
 }
-export function getLevel(id_team,id_level) {
+export function validatePhone(phone) {
+    const phonePattern = /^\d{10,}$/; // Định dạng 10 số trở lên
+    return phonePattern.test(phone)
+}
+export function getLevel(id_team, id_level) {
     let team;
     let level;
     if (id_team === 1) {
@@ -27,5 +31,5 @@ export function getLevel(id_team,id_level) {
     } else if (id_level === 2) {
         level = 'Nhân viên'
     }
-    return {team,level}
+    return { team, level }
 }

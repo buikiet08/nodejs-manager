@@ -47,7 +47,7 @@ export function generateAccessToken(user) {
         admin: user.admin
     };
 
-    const accessToken = jwt.sign(payload, secretKeyAcc, { expiresIn: "10d" });
+    const accessToken = jwt.sign(payload, secretKeyAcc, { expiresIn: "8h" });
     return accessToken;
 }
 
