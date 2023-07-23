@@ -1,6 +1,5 @@
 import express from 'express'
 import dotenv from 'dotenv'
-import cron from 'node-cron'
 import {
     getAllUser,
     register,
@@ -30,10 +29,6 @@ dotenv.config()
 var appRoot = require('app-root-path')
 let router = express.Router()
 
-cron.schedule('0 0 * * *', () => {
-    checkAndDeleteCheckin();
-});
-
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
         console.log(req)
@@ -55,7 +50,6 @@ const imageFilter = function (req, file, cb) {
     cb(null, true);
 };
 let upload = multer({ storage: storage, fileFilter: imageFilter });
-// const upload = multer({ dest: appRoot + '/src/public/images/' })
 const initApiRouter = (app) => {
     router.post('/register', register)
     router.post('/login', login)
@@ -75,8 +69,8 @@ const initApiRouter = (app) => {
     router.get('/users/ranger-user-checkins', middlewareController.verifyToken, getRangerCheckins)
     router.get('/users/:id/:month/:year', middlewareController.verifyToken, checkinUserByMonth)
     router.get('/report-teams', middlewareController.verifyToken, reportTeam)
-    router.put('/users/:userId/avatar', upload.single('avatar'), uploadAvatar)
-    router.delete('user/:userId/delete-checkins',middlewareController.verifyToken, checkAndDeleteCheckin)
+    router.put('/users/:userId/avatar', upload.single('avatar'), uploadAvatar),
+    router.get('/user/:id/delete-checkins', checkAndDeleteCheckin)
     return app.use('/api/v1/', router)
 }
 

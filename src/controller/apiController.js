@@ -264,7 +264,6 @@ let getAllUser = async (req, res) => {
     pool.query(query, params, (error, results) => {
         const page = parseInt(req.query.page) || 1; // Trang hiện tại, mặc định là 1
         const itemsPerPage = 10; // Số bản ghi hiển thị trên mỗi trang
-        console.log('vào data', results)
         if (error) {
             console.log(error)
             return res.status(500).json({ error: error })
@@ -372,8 +371,10 @@ let checkIn = async (req, res) => {
     const timeOut = moment('17:00:00', 'HH:mm:ss')
     const checkInTime = moment(String(timeCheckin), 'HH:mm:ss')
     const lateDuration = moment.duration(checkInTime.diff(defaultTime));
-    const hoursLate = lateDuration.hours();
-    const minutesLate = lateDuration.minutes();
+    let hoursLate = lateDuration.hours();
+    let minutesLate = lateDuration.minutes();
+    if (hoursLate < 0) hoursLate = 0
+    if (minutesLate < 0) minutesLate = 0
     const formattedLateTime = `${String(hoursLate).padStart(2, '0')}:${String(minutesLate).padStart(2, '0')}`;
     const currentDate = moment().format('YYYY-MM-DD')
     // Kiểm tra xem người dùng đã check-in trong ngày đó chưa
@@ -386,9 +387,11 @@ let checkIn = async (req, res) => {
             if (results.length > 0) {
                 // Người dùng đã thực hiện check-in trong ngày đó
                 return res.status(404).json({ error: 'Bạn đã thực hiện check in' });
-            } else if (moment(String(timeCheckin), 'HH:mm:ss').isSameOrAfter(timeOut)) {
+            }
+            else if (moment(String(timeCheckin), 'HH:mm:ss').isSameOrAfter(timeOut)) {
                 return res.status(404).json({ error: 'Đã quá giờ check in, đã hết giờ làm việc' });
-            } else {
+            }
+            else {
                 // Thực hiện truy vấn để lưu thông tin check-in vào cơ sở dữ liệu
                 const query = `INSERT INTO checkins (user_id, checkin_date, checkin_time, time_late) VALUES (${id}, '${currentDate}', '${time}', '${formattedLateTime}')`;
 
@@ -531,17 +534,38 @@ let getUserByTeam = async (req, res) => {
 }
 // lấy top user chuyên cần tốt
 let getRangerCheckins = async (req, res) => {
-    const { firstDayInMonth, lastDayInMonth } = getDate()
-
-    // Thực hiện truy vấn để lấy danh sách các người dùng có thời gian check-in và check-out ít nhất trong một tháng
-    const query = `SELECT user_id, MIN(checkin_time) AS min_checkin_time, MIN(checkout_time) AS min_checkout_time FROM checkins WHERE checkin_date >= '${firstDayInMonth}' AND checkin_date <= '${lastDayInMonth}' GROUP BY user_id ORDER BY min_checkin_time, min_checkout_time`;
+    const query = `
+    SELECT
+      u.*,
+      COUNT(c.id) AS checkin_count,
+      MAX(c.checkin_time) AS latest_checkin_time,
+      MIN(c.checkout_time) AS earliest_checkout_time
+    FROM users u
+    LEFT JOIN checkins c ON u.id = c.user_id
+    WHERE c.checkin_date >= DATE_FORMAT(NOW(), '%Y-%m-01') AND c.checkin_date < DATE_FORMAT(NOW() + INTERVAL 1 MONTH, '%Y-%m-01')
+    GROUP BY u.id
+    ORDER BY checkin_count DESC, (c.time_late - c.time_out) ASC
+    LIMIT 10;
+    `;
 
     pool.query(query, (error, results) => {
         if (error) {
             console.error('Error executing query:', error);
             res.status(500).json({ error: 'An error occurred' });
         } else {
-            res.json({ data: results });
+            let data = []
+            results.forEach(e => {
+                if (e.admin === 0) {
+                    const { password, create_at, update_at, ...orther } = e
+
+                    const { team, level } = getLevel(e.id_team, e.id_level)
+                    const createDate = moment(create_at).format('DD-MM-YYYY')
+                    const loginTime = moment(update_at).format('DD-MM-YYYY HH:mm:ss')
+                    const timeSinceCreation = getTimeCreate(create_at)
+                    data.push({ ...orther, create_at: createDate, update_at: loginTime, title_name: team, title_level: level, create_date: timeSinceCreation })
+                }
+            })
+            res.json({ data: data });
         }
     });
 }
@@ -628,41 +652,34 @@ let uploadAvatar = async (req, res) => {
     });
 
 }
-
+// xoa ket qua checkin khi khong checkout
 const checkAndDeleteCheckin = (req, res) => {
-    const { userId } = req.params;
-  
-    // Kiểm tra nếu userId là một số hợp lệ
-    if (isNaN(userId)) {
-      return res.status(400).json({ error: 'Invalid user ID' });
-    }
-  
-    const queryGet = `SELECT * FROM checkins WHERE id_user = ? AND checkout_time IS NULL`;
-    pool.query(queryGet, [userId], (error, results) => {
-      if (error) {
-        console.error('Error executing query:', error);
-        return res.status(500).json({ error: 'An error occurred' });
-      }
-  
-      if (results.length === 0) {
-        // Nếu không tìm thấy kết quả, trả về thông báo cho người dùng
-        return res.json({ message: 'Không có kết quả checkin cần xóa' });
-      }
-  
-      const query = `DELETE FROM checkins WHERE id_user = ? AND checkout_time IS NULL`;
-      pool.query(query, [userId], (error, results) => {
+    const id = req.id
+    const queryGet = `SELECT user_id FROM checkins WHERE checkout_time IS NULL`;
+    pool.query(queryGet, (error, results) => {
         if (error) {
-          console.error('Error deleting checkins:', error);
-          return res.status(500).json({ error: 'An error occurred' });
+            console.error('Error executing query:', error);
+            return res.status(500).json({ error: 'An error occurred' });
         }
-  
-        return res.json({
-          message: 'Kết quả checkin của bạn đã bị xóa vì chưa checkout trước 00:00',
+
+        if (results.length === 0) {
+            // Nếu không tìm thấy kết quả, trả về thông báo cho người dùng
+            return res.json({ success: false, message: 'Không có kết quả checkin cần xóa' });
+        }
+        const query = `DELETE FROM checkins WHERE user_id = ? AND checkout_time IS NULL`;
+        pool.query(query, [id], (error, results) => {
+            if (error) {
+                return res.status(500).json({ error: 'An error occurred' });
+            }
+
+            return res.json({
+                message: 'Kết quả checkin của bạn đã bị xóa vì chưa checkout trước 00:00',
+                success: true,
+            });
         });
-      });
-    });
-  };
-  
+    })
+};
+
 
 
 
