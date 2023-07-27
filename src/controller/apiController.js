@@ -654,9 +654,10 @@ let uploadAvatar = async (req, res) => {
 }
 // xoa ket qua checkin khi khong checkout
 const checkAndDeleteCheckin = (req, res) => {
-    const id = req.id
-    const queryGet = `SELECT user_id FROM checkins WHERE checkout_time IS NULL`;
-    pool.query(queryGet, (error, results) => {
+    const id = req.params
+    const currentDate = moment().format('YYYY-MM-DD')
+    const queryGet = `SELECT * FROM checkins WHERE user_id = ? AND checkin_date != ? AND checkout_time IS NULL`;
+    pool.query(queryGet, [parseInt(id?.id), currentDate],(error, results) => {
         if (error) {
             console.error('Error executing query:', error);
             return res.status(500).json({ error: 'An error occurred' });
@@ -666,12 +667,11 @@ const checkAndDeleteCheckin = (req, res) => {
             // Nếu không tìm thấy kết quả, trả về thông báo cho người dùng
             return res.json({ success: false, message: 'Không có kết quả checkin cần xóa' });
         }
-        const query = `DELETE FROM checkins WHERE user_id = ? AND checkout_time IS NULL`;
-        pool.query(query, [id], (error, results) => {
+        const query = `DELETE FROM checkins WHERE user_id = ? AND checkin_date != ? AND checkout_time IS NULL`;
+        pool.query(query, [parseInt(id?.id), currentDate], (error, results) => {
             if (error) {
                 return res.status(500).json({ error: 'An error occurred' });
             }
-
             return res.json({
                 message: 'Kết quả checkin của bạn đã bị xóa vì chưa checkout trước 00:00',
                 success: true,

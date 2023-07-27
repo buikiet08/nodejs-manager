@@ -70,7 +70,7 @@ const initApiRouter = (app) => {
     router.get('/users/:id/:month/:year', middlewareController.verifyToken, checkinUserByMonth)
     router.get('/report-teams', middlewareController.verifyToken, reportTeam)
     router.put('/users/:userId/avatar', upload.single('avatar'), uploadAvatar),
-    router.get('/user/:id/delete-checkins', checkAndDeleteCheckin)
+    router.get('/user/:id/delete-checkins', middlewareController.verifyToken,checkAndDeleteCheckin)
     return app.use('/api/v1/', router)
 }
 
