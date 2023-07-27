@@ -225,6 +225,12 @@ let updatePassword = async (req, res) => {
 let updateInfo = async (req, res) => {
     const { id } = req.params
     const { phone, address, date } = req.body
+    if(phone == "" || address == "" || date == "") {
+        return res.status(500).json({ error: 'Vui lòng nhập đầy đủ thông tin' })
+    }
+    if(date == 'Invalid date') {
+        return res.status(500).json({ error: 'Vui lòng nhập ngày sinh' })
+    }
     if (!validatePhone(phone)) {
         return res.status(500).json({ error: 'Số điện thoại không đúng định dạng' })
     }
