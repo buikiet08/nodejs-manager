@@ -1,6 +1,5 @@
 import express from 'express'
 import configViewEngine from './config/viewEngine'
-import connection from './config/connectDB';
 import dotenv from 'dotenv'
 import cors from 'cors'
 import path from 'path'
