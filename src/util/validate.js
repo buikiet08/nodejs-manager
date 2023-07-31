@@ -22,7 +22,7 @@ export function getLevel(id_team, id_level) {
     } else if (id_team === 6) {
         team = 'Tester'
     } else if (id_team === 7) {
-        team = 'PA'
+        team = 'BA'
     } else if (id_team === 8) {
         team = 'QC'
     }
